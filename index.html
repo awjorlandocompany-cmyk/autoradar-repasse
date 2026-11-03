@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AutoRadar Repasse - Carros com Margem Real</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- QRCoder / QRCode.js para gerar QR Code Pix em tempo real -->
+  <!-- Biblioteca para gerar o QR Code Pix em tempo real -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -27,7 +27,7 @@
     let base64Image = "";
     let currentCarForPix = null;
 
-    // Chave Pix padrão (podes alterar para o teu CNPJ, E-mail ou Telemóvel)
+    // Chave Pix padrão (podes alterar para a tua chave preferida)
     const CHAVE_PIX_PADRAO = "pix@autoradarrepasse.com.br";
 
     window.handleImageUpload = (event) => {
@@ -109,14 +109,12 @@
       }
     };
 
-    // Modal do QR Code Pix
     window.abrirModalPix = (modelo, repasse, whatsapp) => {
       currentCarForPix = { modelo, repasse, whatsapp };
       document.getElementById("pix-car-title").innerText = modelo;
       document.getElementById("pix-car-price").innerText = repasse;
       document.getElementById("pix-key-input").value = CHAVE_PIX_PADRAO;
 
-      // Gerar QR Code
       const qrContainer = document.getElementById("qrcode");
       qrContainer.innerHTML = "";
       new QRCode(qrContainer, {
@@ -144,7 +142,7 @@
 
     window.confirmarPagamentoWhats = () => {
       if (!currentCarForPix) return;
-      const text = encodeURIComponent(`Olá! Já fiz o Pix de ${currentCarForPix.repasse} para garantir o ${currentCarForPix.modelo}. Segue o comprovativo em anexo!`);
+      const text = encodeURIComponent(`Olá! Já fiz o Pix de ${currentCarForPix.repasse} para garantir o ${currentCarForPix.modelo}. Segue o comprovativo.`);
       window.open(`https://wa.me/55${currentCarForPix.whatsapp.replace(/\D/g,'')}?text=${text}`, '_blank');
     };
 
@@ -161,7 +159,7 @@
     function renderCars(cars) {
       const container = document.getElementById("cars-container");
       if (cars.length === 0) {
-        container.innerHTML = `<p class="text-center text-gray-400 col-span-full py-12">Nenhum carro cadastrado no momento. Adicione o primeiro carro no painel acima!</p>`;
+        container.innerHTML = `<p class="text-center text-gray-400 col-span-full py-12">Nenhum carro de repasse no momento. Utilize o painel de administrador para publicar oportunidades!</p>`;
         return;
       }
       container.innerHTML = cars.map(car => `
@@ -216,7 +214,7 @@
         <button onclick="toggleAdmin()" class="text-gray-400 hover:text-white p-2" title="Painel Admin">
           🔒
         </button>
-        <button class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition shadow-lg shadow-purple-600/30">
+        <button onclick="abrirModalPix('Assinatura VIP AutoRadar', 'R$ 97,00', '11999999999')" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition shadow-lg shadow-purple-600/30">
           Assinar VIP
         </button>
       </div>
