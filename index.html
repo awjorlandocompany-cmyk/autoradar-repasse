@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AutoRadar Repasse - Carros com Margem Real</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- QRCoder / QRCode.js para gerar QR Code Pix em tempo real -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Configuração do Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyDummyKeyForAutoRadarRepasse",
       authDomain: "autoradar-repasse.firebaseapp.com",
@@ -24,8 +25,11 @@
 
     let isAdmin = false;
     let base64Image = "";
+    let currentCarForPix = null;
 
-    // Leitura das imagens locais
+    // Chave Pix padrão (podes alterar para o teu CNPJ, E-mail ou Telemóvel)
+    const CHAVE_PIX_PADRAO = "pix@autoradarrepasse.com.br";
+
     window.handleImageUpload = (event) => {
       const file = event.target.files[0];
       if (file) {
@@ -37,7 +41,6 @@
       }
     };
 
-    // Função de Login do Admin com a senha Cel949601
     window.toggleAdmin = () => {
       if (!isAdmin) {
         const password = prompt("Insira a senha de Administrador:");
@@ -56,7 +59,6 @@
       }
     };
 
-    // Função para limpar valores e calcular a percentagem de desconto FIPE
     function calcularMargemDesconto(fipeStr, repasseStr) {
       const fipeNum = parseFloat(fipeStr.replace(/[^\d]/g, '')) || 0;
       const repasseNum = parseFloat(repasseStr.replace(/[^\d]/g, '')) || 0;
@@ -69,7 +71,6 @@
       return "";
     }
 
-    // Guardar veículo no Firestore
     window.saveCar = async (e) => {
       e.preventDefault();
       const modelo = document.getElementById("modelo").value;
@@ -98,7 +99,6 @@
       }
     };
 
-    // Eliminar veículo do Firestore
     window.deleteCar = async (id) => {
       if (confirm("Tem certeza que deseja apagar este anúncio?")) {
         try {
@@ -109,9 +109,47 @@
       }
     };
 
+    // Modal do QR Code Pix
+    window.abrirModalPix = (modelo, repasse, whatsapp) => {
+      currentCarForPix = { modelo, repasse, whatsapp };
+      document.getElementById("pix-car-title").innerText = modelo;
+      document.getElementById("pix-car-price").innerText = repasse;
+      document.getElementById("pix-key-input").value = CHAVE_PIX_PADRAO;
+
+      // Gerar QR Code
+      const qrContainer = document.getElementById("qrcode");
+      qrContainer.innerHTML = "";
+      new QRCode(qrContainer, {
+        text: `PAYMENT:${modelo}:${repasse}:${CHAVE_PIX_PADRAO}`,
+        width: 180,
+        height: 180,
+        colorDark : "#0f172a",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+      });
+
+      document.getElementById("pix-modal").classList.remove("hidden");
+    };
+
+    window.fecharModalPix = () => {
+      document.getElementById("pix-modal").classList.add("hidden");
+    };
+
+    window.copiarChavePix = () => {
+      const copyText = document.getElementById("pix-key-input");
+      copyText.select();
+      navigator.clipboard.writeText(copyText.value);
+      alert("Chave Pix copiada para a área de transferência!");
+    };
+
+    window.confirmarPagamentoWhats = () => {
+      if (!currentCarForPix) return;
+      const text = encodeURIComponent(`Olá! Já fiz o Pix de ${currentCarForPix.repasse} para garantir o ${currentCarForPix.modelo}. Segue o comprovativo em anexo!`);
+      window.open(`https://wa.me/55${currentCarForPix.whatsapp.replace(/\D/g,'')}?text=${text}`, '_blank');
+    };
+
     let currentCars = [];
 
-    // Atualização em tempo real da lista
     onSnapshot(collection(db, "veiculos"), (snapshot) => {
       currentCars = [];
       snapshot.forEach((doc) => {
@@ -148,15 +186,17 @@
                 <span class="bg-slate-700 text-gray-300 text-xs px-2.5 py-1 rounded-full">${car.ano}</span>
               </div>
               <p class="text-gray-400 text-sm mb-4">📍 ${car.local}</p>
-              <div class="space-y-1 mb-4 text-sm">
-                <div class="flex justify-between text-gray-400"><span>Tabela FIPE:</span> <span>${car.fipe}</span></div>
+              
+              <div class="space-y-1.5 mb-5 text-sm bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                <div class="flex justify-between text-gray-400"><span>Tabela FIPE:</span> <span class="font-medium text-white">${car.fipe}</span></div>
                 <div class="flex justify-between text-emerald-400 font-semibold"><span>Preço Repasse:</span> <span>${car.repasse}</span></div>
-                <div class="flex justify-between text-purple-400 font-bold"><span>Lucro Estimado:</span> <span>${car.lucro}</span></div>
+                <div class="flex justify-between text-purple-400 font-bold border-t border-slate-800 pt-1.5"><span>Lucro Estimado:</span> <span>${car.lucro}</span></div>
               </div>
             </div>
-            <a href="https://wa.me/55${car.whatsapp.replace(/\D/g,'')}?text=Olá,%20vi%20o%20anúncio%20do%20${encodeURIComponent(car.modelo)}%20no%20site%20e%20gostaria%20de%20saber%20se%20ele%20ainda%20está%20disponível%20no%20nosso%20estoque." target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition">
-              Falar no WhatsApp
-            </a>
+
+            <button onclick="abrirModalPix('${car.modelo}', '${car.repasse}', '${car.whatsapp}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/20">
+              ⚡ Comprar Agora (QR Code Pix)
+            </button>
           </div>
         </div>
       `).join('');
@@ -176,7 +216,7 @@
         <button onclick="toggleAdmin()" class="text-gray-400 hover:text-white p-2" title="Painel Admin">
           🔒
         </button>
-        <button class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition">
+        <button class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition shadow-lg shadow-purple-600/30">
           Assinar VIP
         </button>
       </div>
@@ -201,7 +241,6 @@
         <input type="text" id="local" placeholder="Cidade/Estado (ex: Suzano - SP)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
         <input type="text" id="whatsapp" placeholder="WhatsApp do Repassador com DDD" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
         
-        <!-- Upload de Ficheiro Local ou URL -->
         <div class="flex flex-col gap-1">
           <input type="file" id="fotoFile" accept="image/*" onchange="handleImageUpload(event)" class="bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-purple-600 file:text-white hover:file:bg-purple-500">
           <input type="text" id="fotoUrl" placeholder="Ou cole a URL da Foto" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500">
@@ -218,13 +257,47 @@
   <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
     <div class="text-center mb-10">
       <h2 class="text-3xl font-extrabold sm:text-4xl text-white">Carros de Repasse com <span class="text-purple-400">Margens Reais</span></h2>
-      <p class="text-gray-400 mt-2">Acesse veículos selecionados abaixo da Tabela FIPE e fale direto com o vendedor.</p>
+      <p class="text-gray-400 mt-2">Acesse veículos selecionados abaixo da Tabela FIPE e garanta o seu veículo via Pix direto.</p>
     </div>
 
     <div id="cars-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <!-- Veículos renderizados dinamicamente -->
     </div>
   </main>
+
+  <!-- Modal do QR Code Pix -->
+  <div id="pix-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 relative shadow-2xl">
+      <button onclick="fecharModalPix()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl">✕</button>
+      
+      <div class="text-center mb-6">
+        <span class="inline-block bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full mb-2">Pagamento Imediato Pix</span>
+        <h3 id="pix-car-title" class="text-xl font-bold text-white">Modelo do Veículo</h3>
+        <p class="text-gray-400 text-sm">Valor: <span id="pix-car-price" class="text-emerald-400 font-bold">R$ 0,00</span></p>
+      </div>
+
+      <!-- QR Code Gerado -->
+      <div class="bg-white p-4 rounded-xl w-fit mx-auto mb-6 flex justify-center items-center shadow-inner">
+        <div id="qrcode"></div>
+      </div>
+
+      <!-- Chave Copia e Cola -->
+      <div class="space-y-3 mb-6">
+        <label class="block text-xs text-gray-400 font-medium">Chave Pix Copia e Cola:</label>
+        <div class="flex gap-2">
+          <input type="text" id="pix-key-input" readonly class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-gray-300 w-full focus:outline-none">
+          <button onclick="copiarChavePix()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+            📋 Copiar
+          </button>
+        </div>
+      </div>
+
+      <!-- Confirmação no WhatsApp -->
+      <button onclick="confirmarPagamentoWhats()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/30">
+        Enviar Comprovante via WhatsApp
+      </button>
+    </div>
+  </div>
 
 </body>
 </html>
