@@ -56,6 +56,19 @@
       }
     };
 
+    // Função para limpar valores e calcular a percentagem de desconto FIPE
+    function calcularMargemDesconto(fipeStr, repasseStr) {
+      const fipeNum = parseFloat(fipeStr.replace(/[^\d]/g, '')) || 0;
+      const repasseNum = parseFloat(repasseStr.replace(/[^\d]/g, '')) || 0;
+      
+      if (fipeNum > 0 && repasseNum > 0 && fipeNum > repasseNum) {
+        const diferenca = fipeNum - repasseNum;
+        const porcentagem = (diferenca / fipeNum) * 100;
+        return `-${porcentagem.toFixed(0)}% abaixo da FIPE`;
+      }
+      return "";
+    }
+
     // Guardar veículo no Firestore
     window.saveCar = async (e) => {
       e.preventDefault();
@@ -69,10 +82,11 @@
       const inputUrl = document.getElementById("fotoUrl").value;
 
       const fotoFinal = base64Image || inputUrl || "https://via.placeholder.com/400x300?text=Sem+Foto";
+      const descontoFipe = calcularMargemDesconto(fipe, repasse);
 
       try {
         await addDoc(collection(db, "veiculos"), {
-          modelo, ano, fipe, repasse, lucro, local, whatsapp, foto: fotoFinal,
+          modelo, ano, fipe, repasse, lucro, local, whatsapp, foto: fotoFinal, descontoFipe,
           createdAt: new Date()
         });
         alert("Veículo publicado com sucesso!");
@@ -115,11 +129,18 @@
       container.innerHTML = cars.map(car => `
         <div class="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 flex flex-col justify-between relative">
           ${isAdmin ? `
-            <button onclick="deleteCar('${car.id}')" class="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg text-xs font-bold z-10">
+            <button onclick="deleteCar('${car.id}')" class="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg text-xs font-bold z-10 shadow">
               ✕ Excluir
             </button>
           ` : ''}
-          <img src="${car.foto}" alt="${car.modelo}" class="w-full h-48 object-cover">
+          <div class="relative">
+            <img src="${car.foto}" alt="${car.modelo}" class="w-full h-48 object-cover">
+            ${car.descontoFipe ? `
+              <span class="absolute bottom-2 left-2 bg-emerald-600 text-white text-xs font-bold px-2.5 py-1 rounded-md shadow">
+                ${car.descontoFipe}
+              </span>
+            ` : ''}
+          </div>
           <div class="p-5 flex-1 flex flex-col justify-between">
             <div>
               <div class="flex justify-between items-start mb-2">
@@ -133,7 +154,7 @@
                 <div class="flex justify-between text-purple-400 font-bold"><span>Lucro Estimado:</span> <span>${car.lucro}</span></div>
               </div>
             </div>
-            <a href="https://wa.me/55${car.whatsapp.replace(/\D/g,'')}?text=Olá,%20tenho%20interesse%20no%20${encodeURIComponent(car.modelo)}" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition">
+            <a href="https://wa.me/55${car.whatsapp.replace(/\D/g,'')}?text=Olá,%20vi%20o%20anúncio%20do%20${encodeURIComponent(car.modelo)}%20no%20site%20e%20gostaria%20de%20saber%20se%20ele%20ainda%20está%20disponível%20no%20nosso%20estoque." target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition">
               Falar no WhatsApp
             </a>
           </div>
