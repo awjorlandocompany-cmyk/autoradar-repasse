@@ -1,370 +1,209 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoRadar Repasse | Veículos Abaixo da FIPE</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-purple-600 selection:text-white">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoRadar Repasse - Carros com Margem Real</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    <div id="root"></div>
+    // Configuração do Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDummyKeyForAutoRadarRepasse",
+      authDomain: "autoradar-repasse.firebaseapp.com",
+      projectId: "autoradar-repasse",
+      storageBucket: "autoradar-repasse.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
 
-    <!-- React & Babel -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    <!-- Firebase SDK (Modular Versão CDN) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    let isAdmin = false;
+    let base64Image = "";
 
-        // Chaves exatas tiradas do teu Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyC1-ZUCkvCpJS8ehiZonHzH7fYvfW6cbYo",
-            authDomain: "autoradar-repasse.firebaseapp.com",
-            projectId: "autoradar-repasse",
-            storageBucket: "autoradar-repasse.firebasestorage.app",
-            messagingSenderId: "589305104243",
-            appId: "1:589305104243:web:81ef02abae10a6b040e706"
+    // Leitura das imagens locais
+    window.handleImageUpload = (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          base64Image = reader.result;
         };
+        reader.readAsDataURL(file);
+      }
+    };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        window.db = db;
-        window.firestoreTools = { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp };
-    </script>
-
-    <script type="text/babel">
-        function App() {
-            const [carros, setCarros] = React.useState([]);
-            const [isUnlocked, setIsUnlocked] = React.useState(false);
-            const [selectedPlan, setSelectedPlan] = React.useState(null);
-            const [showPixModal, setShowPixModal] = React.useState(false);
-            
-            // Estado do Admin
-            const [isAdmin, setIsAdmin] = React.useState(false);
-            const [showAdminModal, setShowAdminModal] = React.useState(false);
-            const [adminPassword, setAdminPassword] = React.useState("");
-            
-            // Form de Cadastro de Carros
-            const [novoCarro, setNovoCarro] = React.useState({
-                modelo: "",
-                ano: "",
-                fipe: "",
-                precoRepasse: "",
-                lucro: "",
-                local: "",
-                foto: "",
-                telefoneContato: "",
-                detalhes: ""
-            });
-
-            // Carregar Carros do Firebase em Tempo Real
-            React.useEffect(() => {
-                const checkFirebase = setInterval(() => {
-                    if (window.db && window.firestoreTools) {
-                        clearInterval(checkFirebase);
-                        const { collection, onSnapshot } = window.firestoreTools;
-                        const carrosRef = collection(window.db, "veiculos");
-
-                        const unsubscribe = onSnapshot(carrosRef, (snapshot) => {
-                            const lista = snapshot.docs.map(doc => ({
-                                id: doc.id,
-                                ...doc.data()
-                            }));
-                            setCarros(lista);
-                        });
-
-                        return () => unsubscribe();
-                    }
-                }, 200);
-            }, []);
-
-            const handleAdminLogin = (e) => {
-                e.preventDefault();
-                if (adminPassword === "Cel949601") { // Senha padrao do Admin
-                    setIsAdmin(true);
-                    setShowAdminModal(false);
-                    setAdminPassword("");
-                    alert("Acesso de Administrador Ativado!");
-                } else {
-                    alert("Senha incorreta!");
-                }
-            };
-
-            const handleAddCarro = async (e) => {
-                e.preventDefault();
-                if (!novoCarro.modelo || !novoCarro.precoRepasse) {
-                    alert("Preencha pelo menos o Modelo e o Preço de Repasse!");
-                    return;
-                }
-
-                try {
-                    const { collection, addDoc, serverTimestamp } = window.firestoreTools;
-                    await addDoc(collection(window.db, "veiculos"), {
-                        ...novoCarro,
-                        disponivel: true,
-                        criadoEm: serverTimestamp()
-                    });
-
-                    setNovoCarro({
-                        modelo: "", ano: "", fipe: "", precoRepasse: "", lucro: "", local: "", foto: "", telefoneContato: "", detalhes: ""
-                    });
-                    alert("Veículo publicado com sucesso!");
-                } catch (err) {
-                    console.error("Erro ao adicionar veículo:", err);
-                    alert("Erro ao publicar veículo. Verifique se ativou o Firestore em Modo de Teste.");
-                }
-            };
-
-            const handleToggleStatus = async (carroId, statusAtual) => {
-                try {
-                    const { doc, updateDoc } = window.firestoreTools;
-                    const carRef = doc(window.db, "veiculos", carroId);
-                    await updateDoc(carRef, { disponivel: !statusAtual });
-                } catch (err) {
-                    console.error("Erro ao alterar status:", err);
-                }
-            };
-
-            const handleDeleteCarro = async (carroId) => {
-                if (confirm("Tem certeza que deseja excluir este veículo?")) {
-                    try {
-                        const { doc, deleteDoc } = window.firestoreTools;
-                        await deleteDoc(doc(window.db, "veiculos", carroId));
-                    } catch (err) {
-                        console.error("Erro ao deletar:", err);
-                    }
-                }
-            };
-
-            const handleSelectPlan = (plan) => {
-                setSelectedPlan(plan);
-                setShowPixModal(true);
-            };
-
-            const handleSimulatePayment = () => {
-                setIsUnlocked(true);
-                setShowPixModal(false);
-                alert("Pagamento simulado com sucesso! Acesso liberado.");
-            };
-
-            return (
-                <div className="flex flex-col min-h-screen">
-                    {/* Header */}
-                    <header className="border-b border-slate-800 bg-slate-900/55 sticky top-0 z-40 backdrop-blur-md">
-                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                                <div className="bg-purple-600 text-white p-2 rounded-xl font-bold flex items-center justify-center shadow-lg shadow-purple-600/30">
-                                    <i className="fa-solid fa-radar text-lg animate-pulse"></i>
-                                </div>
-                                <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-200 to-purple-400 bg-clip-text text-transparent">
-                                    AutoRadar <span className="text-purple-500">Repasse</span>
-                                </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setShowAdminModal(true)} className="text-slate-400 hover:text-white p-2 text-sm transition">
-                                    <i className={`fa-solid ${isAdmin ? 'fa-user-gear text-purple-400' : 'fa-lock'}`}></i>
-                                </button>
-                                {isUnlocked ? (
-                                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1.5">
-                                        <i className="fa-solid fa-circle-check"></i> VIP Ativo
-                                    </span>
-                                ) : (
-                                    <button onClick={() => document.getElementById('planos').scrollIntoView({ behavior: 'smooth' })} className="bg-purple-600 hover:bg-purple-500 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl transition shadow-lg shadow-purple-600/20">
-                                        Assinar VIP
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* Formulário Admin (Apenas visível para Admin) */}
-                    {isAdmin && (
-                        <div className="bg-slate-900 border-b border-purple-500/40 p-6">
-                            <div className="max-w-4xl mx-auto">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-bold text-purple-400 flex items-center gap-2">
-                                        <i className="fa-solid fa-plus-circle"></i> Painel do Administrador - Publicar Veículo
-                                    </h3>
-                                    <button onClick={() => setIsAdmin(false)} className="text-xs text-rose-400 hover:underline">Sair do Modo Admin</button>
-                                </div>
-                                <form onSubmit={handleAddCarro} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <input type="text" placeholder="Modelo do Carro (ex: Clio 1.0)" value={novoCarro.modelo} onChange={e => setNovoCarro({...novoCarro, modelo: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="Ano (ex: 2009/2009)" value={novoCarro.ano} onChange={e => setNovoCarro({...novoCarro, ano: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="Preço Tabela FIPE (ex: R$ 18.765)" value={novoCarro.fipe} onChange={e => setNovoCarro({...novoCarro, fipe: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="Preço de Repasse (ex: R$ 11.500)" value={novoCarro.precoRepasse} onChange={e => setNovoCarro({...novoCarro, precoRepasse: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="Lucro Estimado (ex: R$ 7.265)" value={novoCarro.lucro} onChange={e => setNovoCarro({...novoCarro, lucro: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="Cidade/Estado (ex: Suzano - SP)" value={novoCarro.local} onChange={e => setNovoCarro({...novoCarro, local: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="WhatsApp do Repassador com DDD" value={novoCarro.telefoneContato} onChange={e => setNovoCarro({...novoCarro, telefoneContato: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white" />
-                                    <input type="text" placeholder="Link da Foto do Carro (URL)" value={novoCarro.foto} onChange={e => setNovoCarro({...novoCarro, foto: e.target.value})} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white md:col-span-2" />
-                                    <button type="submit" className="md:col-span-3 bg-purple-600 hover:bg-purple-500 text-white font-bold p-2.5 rounded-lg text-xs transition">
-                                        Publicar Carro Agora
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Hero Section */}
-                    <section className="relative overflow-hidden py-12 lg:py-20 border-b border-slate-900">
-                        <div className="max-w-4xl mx-auto px-4 text-center">
-                            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
-                                Carros de Repasse com <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">Margens Reais</span>
-                            </h1>
-                            <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto">
-                                Acesse veículos selecionados abaixo da Tabela FIPE e fale direto com o vendedor.
-                            </p>
-                        </div>
-                    </section>
-
-                    {/* Catálogo de Veículos */}
-                    <main className="flex-grow max-w-7xl mx-auto px-4 py-12 w-full">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {carros.length === 0 ? (
-                                <div className="col-span-full text-center py-12 text-slate-500 text-sm">
-                                    Nenhum carro cadastrado no momento. {isAdmin ? 'Adicione o primeiro carro no painel acima!' : ''}
-                                </div>
-                            ) : (
-                                carros.map((carro) => (
-                                    <div key={carro.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-xl">
-                                        <div className="relative h-48 overflow-hidden bg-slate-950">
-                                            <img src={carro.foto || "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=800&q=80"} alt={carro.modelo} className="w-full h-full object-cover" />
-                                            {carro.lucro && (
-                                                <div className="absolute top-3 left-3 bg-slate-950/80 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-2.5 py-1 rounded-lg">
-                                                    Lucro est. {carro.lucro}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="p-5 flex flex-col flex-grow">
-                                            <span className="text-xs text-purple-400 font-semibold mb-1">{carro.ano} • {carro.local}</span>
-                                            <h3 className="text-lg font-bold text-white mb-4">{carro.modelo}</h3>
-                                            
-                                            <div className="grid grid-cols-2 gap-2 bg-slate-950/50 p-3 rounded-xl mb-4 border border-slate-800/60">
-                                                <div>
-                                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Tabela FIPE</span>
-                                                    <span className="text-sm text-slate-300 line-through">{carro.fipe}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] text-purple-400 uppercase font-bold block">Preço Repasse</span>
-                                                    <span className="text-base font-extrabold text-white">{carro.precoRepasse}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Modos Admin: Marcar Vendido / Excluir */}
-                                            {isAdmin && (
-                                                <div className="flex gap-2 mb-4">
-                                                    <button onClick={() => handleToggleStatus(carro.id, carro.disponivel)} className={`flex-1 text-[10px] py-1 rounded font-bold ${carro.disponivel ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                                                        {carro.disponivel ? 'Marcar Vendido' : 'Marcar Disponível'}
-                                                    </button>
-                                                    <button onClick={() => handleDeleteCarro(carro.id)} className="bg-rose-500/20 text-rose-300 text-[10px] px-2 py-1 rounded font-bold">
-                                                        Excluir
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Paywall */}
-                                            <div className="mt-auto pt-4 border-t border-slate-800">
-                                                {isUnlocked ? (
-                                                    <div className="space-y-3">
-                                                        <div className="flex items-center justify-between text-xs">
-                                                            <span className="text-slate-400">Status:</span>
-                                                            <span className={carro.disponivel ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                                                                {carro.disponivel ? "Disponível" : "Vendido"}
-                                                            </span>
-                                                        </div>
-                                                        <a href={`https://wa.me/55${(carro.telefoneContato || '').replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition">
-                                                            <i className="fa-brands fa-whatsapp"></i> Falar com Repassador
-                                                        </a>
-                                                    </div>
-                                                ) : (
-                                                    <div className="relative py-2 text-center">
-                                                        <div className="absolute inset-0 backdrop-blur-sm bg-slate-950/70 z-10 flex flex-col items-center justify-center rounded-lg border border-purple-500/20">
-                                                            <button onClick={() => document.getElementById('planos').scrollIntoView({ behavior: 'smooth' })} className="text-[11px] text-white underline font-bold hover:text-purple-400">
-                                                                Desbloquear Status e Telefone
-                                                            </button>
-                                                        </div>
-                                                        <div className="filter blur-[6px] text-xs text-slate-500">
-                                                            Status: Disponível • Tel: (11) 9****-****
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </main>
-
-                    {/* Planos */}
-                    <section id="planos" className="py-16 bg-slate-900/40 border-t border-slate-900">
-                        <div className="max-w-5xl mx-auto px-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col">
-                                    <h3 className="text-lg font-bold text-white mb-2">Acesso VIP Padrão</h3>
-                                    <span className="text-3xl font-extrabold text-white mb-6">R$ 49,90 <span className="text-xs text-slate-500">/mês</span></span>
-                                    <button onClick={() => handleSelectPlan('Padrao')} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl text-xs transition">
-                                        Assinar Padrão
-                                    </button>
-                                </div>
-                                <div className="bg-gradient-to-b from-purple-950/40 to-slate-900 border-2 border-purple-500 rounded-3xl p-6 flex flex-col">
-                                    <h3 className="text-lg font-bold text-white mb-2">Passaporte VIP + WhatsApp</h3>
-                                    <span className="text-3xl font-extrabold text-white mb-6">R$ 59,90 <span className="text-xs text-slate-400">/mês</span></span>
-                                    <button onClick={() => handleSelectPlan('WhatsApp')} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl text-xs transition">
-                                        Quero Receber no WhatsApp
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Modal Login Admin */}
-                    {showAdminModal && (
-                        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-                            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-6 text-center relative">
-                                <button onClick={() => setShowAdminModal(false)} className="absolute top-3 right-3 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
-                                <h3 className="text-base font-bold text-white mb-4">Acesso Restrito Admin</h3>
-                                <form onSubmit={handleAdminLogin}>
-                                    <input type="password" placeholder="Digite a senha (1234)" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mb-3 text-center" />
-                                    <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-xs transition">Entrar</button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Modal PIX */}
-                    {showPixModal && (
-                        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-                            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-center relative">
-                                <button onClick={() => setShowPixModal(false)} className="absolute top-4 right-4 text-slate-400"><i className="fa-solid fa-xmark"></i></button>
-                                <h3 className="text-xl font-bold text-white mb-2">Pagamento via PIX</h3>
-                                <div className="bg-white p-4 rounded-2xl inline-block my-4">
-                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=AutoRadarRepassePIX" alt="QR Code PIX" className="w-40 h-40 mx-auto" />
-                                </div>
-                                <button onClick={handleSimulatePayment} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-xs transition">
-                                    Simular Pagamento Aprovado
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
+    // Função de Login do Admin com a senha Cel949601
+    window.toggleAdmin = () => {
+      if (!isAdmin) {
+        const password = prompt("Insira a senha de Administrador:");
+        if (password === "Cel949601") {
+          isAdmin = true;
+          document.getElementById("admin-panel").classList.remove("hidden");
+          alert("Modo Administrador Ativado!");
+          renderCars(currentCars);
+        } else if (password !== null) {
+          alert("Senha incorreta!");
         }
+      } else {
+        isAdmin = false;
+        document.getElementById("admin-panel").classList.add("hidden");
+        renderCars(currentCars);
+      }
+    };
 
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
+    // Guardar veículo no Firestore
+    window.saveCar = async (e) => {
+      e.preventDefault();
+      const modelo = document.getElementById("modelo").value;
+      const ano = document.getElementById("ano").value;
+      const fipe = document.getElementById("fipe").value;
+      const repasse = document.getElementById("repasse").value;
+      const lucro = document.getElementById("lucro").value;
+      const local = document.getElementById("local").value;
+      const whatsapp = document.getElementById("whatsapp").value;
+      const inputUrl = document.getElementById("fotoUrl").value;
+
+      const fotoFinal = base64Image || inputUrl || "https://via.placeholder.com/400x300?text=Sem+Foto";
+
+      try {
+        await addDoc(collection(db, "veiculos"), {
+          modelo, ano, fipe, repasse, lucro, local, whatsapp, foto: fotoFinal,
+          createdAt: new Date()
+        });
+        alert("Veículo publicado com sucesso!");
+        document.getElementById("car-form").reset();
+        base64Image = "";
+      } catch (err) {
+        console.error("Erro ao publicar:", err);
+        alert("Erro ao salvar veículo no banco de dados.");
+      }
+    };
+
+    // Eliminar veículo do Firestore
+    window.deleteCar = async (id) => {
+      if (confirm("Tem certeza que deseja apagar este anúncio?")) {
+        try {
+          await deleteDoc(doc(db, "veiculos", id));
+        } catch (err) {
+          console.error("Erro ao apagar:", err);
+        }
+      }
+    };
+
+    let currentCars = [];
+
+    // Atualização em tempo real da lista
+    onSnapshot(collection(db, "veiculos"), (snapshot) => {
+      currentCars = [];
+      snapshot.forEach((doc) => {
+        currentCars.push({ id: doc.id, ...doc.data() });
+      });
+      renderCars(currentCars);
+    });
+
+    function renderCars(cars) {
+      const container = document.getElementById("cars-container");
+      if (cars.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-400 col-span-full py-12">Nenhum carro cadastrado no momento. Adicione o primeiro carro no painel acima!</p>`;
+        return;
+      }
+      container.innerHTML = cars.map(car => `
+        <div class="bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 flex flex-col justify-between relative">
+          ${isAdmin ? `
+            <button onclick="deleteCar('${car.id}')" class="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg text-xs font-bold z-10">
+              ✕ Excluir
+            </button>
+          ` : ''}
+          <img src="${car.foto}" alt="${car.modelo}" class="w-full h-48 object-cover">
+          <div class="p-5 flex-1 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-bold text-white">${car.modelo}</h3>
+                <span class="bg-slate-700 text-gray-300 text-xs px-2.5 py-1 rounded-full">${car.ano}</span>
+              </div>
+              <p class="text-gray-400 text-sm mb-4">📍 ${car.local}</p>
+              <div class="space-y-1 mb-4 text-sm">
+                <div class="flex justify-between text-gray-400"><span>Tabela FIPE:</span> <span>${car.fipe}</span></div>
+                <div class="flex justify-between text-emerald-400 font-semibold"><span>Preço Repasse:</span> <span>${car.repasse}</span></div>
+                <div class="flex justify-between text-purple-400 font-bold"><span>Lucro Estimado:</span> <span>${car.lucro}</span></div>
+              </div>
+            </div>
+            <a href="https://wa.me/55${car.whatsapp.replace(/\D/g,'')}?text=Olá,%20tenho%20interesse%20no%20${encodeURIComponent(car.modelo)}" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition">
+              Falar no WhatsApp
+            </a>
+          </div>
+        </div>
+      `).join('');
+    }
+  </script>
+</head>
+<body class="bg-slate-900 text-gray-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+        <h1 class="text-xl font-bold tracking-tight"><span class="text-white">AutoRadar</span> <span class="text-purple-400">Repasse</span></h1>
+      </div>
+      <div class="flex items-center gap-4">
+        <button onclick="toggleAdmin()" class="text-gray-400 hover:text-white p-2" title="Painel Admin">
+          🔒
+        </button>
+        <button class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition">
+          Assinar VIP
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Admin Panel -->
+  <div id="admin-panel" class="hidden bg-slate-800 border-b border-purple-500/30 p-6">
+    <div class="max-w-7xl mx-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-purple-400 flex items-center gap-2">
+          <span>⚙️</span> Painel do Administrador – Publicar Veículo
+        </h2>
+        <button onclick="toggleAdmin()" class="text-xs text-gray-400 hover:text-white">Sair do Modo Admin</button>
+      </div>
+      <form id="car-form" onsubmit="saveCar(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <input type="text" id="modelo" placeholder="Modelo do Carro (ex: Clio 1.0)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        <input type="text" id="ano" placeholder="Ano (ex: 2009/2009)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        <input type="text" id="fipe" placeholder="Preço Tabela FIPE (ex: R$ 18.765)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        <input type="text" id="repasse" placeholder="Preço de Repasse (ex: R$ 11.500)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        <input type="text" id="lucro" placeholder="Lucro Estimado (ex: R$ 7.265)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        <input type="text" id="local" placeholder="Cidade/Estado (ex: Suzano - SP)" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        <input type="text" id="whatsapp" placeholder="WhatsApp do Repassador com DDD" required class="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+        
+        <!-- Upload de Ficheiro Local ou URL -->
+        <div class="flex flex-col gap-1">
+          <input type="file" id="fotoFile" accept="image/*" onchange="handleImageUpload(event)" class="bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-purple-600 file:text-white hover:file:bg-purple-500">
+          <input type="text" id="fotoUrl" placeholder="Ou cole a URL da Foto" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500">
+        </div>
+
+        <button type="submit" class="col-span-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg transition mt-2">
+          Publicar Carro Agora
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
+    <div class="text-center mb-10">
+      <h2 class="text-3xl font-extrabold sm:text-4xl text-white">Carros de Repasse com <span class="text-purple-400">Margens Reais</span></h2>
+      <p class="text-gray-400 mt-2">Acesse veículos selecionados abaixo da Tabela FIPE e fale direto com o vendedor.</p>
+    </div>
+
+    <div id="cars-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Veículos renderizados dinamicamente -->
+    </div>
+  </main>
+
 </body>
 </html>
